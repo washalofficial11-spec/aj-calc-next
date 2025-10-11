@@ -1,18 +1,29 @@
-import { X, Plus, Minus, Trash2 } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useCart } from '@/contexts/CartContext';
+import { useState } from 'react';
 
 interface CartSidebarProps {
-  open: boolean;
-  onClose: () => void;
+  onCheckout?: () => void;
 }
 
-const CartSidebar = ({ open, onClose }: CartSidebarProps) => {
-  const { items, removeFromCart, updateQuantity, getTotalPrice } = useCart();
+const CartSidebar = ({ onCheckout }: CartSidebarProps) => {
+  const [open, setOpen] = useState(false);
+  const { items, removeFromCart, updateQuantity, getTotalPrice, getTotalItems } = useCart();
 
   return (
-    <Sheet open={open} onOpenChange={onClose}>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="outline" size="icon" className="relative">
+          <ShoppingCart className="h-5 w-5" />
+          {getTotalItems() > 0 && (
+            <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              {getTotalItems()}
+            </span>
+          )}
+        </Button>
+      </SheetTrigger>
       <SheetContent className="w-full sm:max-w-lg">
         <SheetHeader>
           <SheetTitle className="text-2xl">Shopping Cart ({items.length})</SheetTitle>
@@ -72,7 +83,14 @@ const CartSidebar = ({ open, onClose }: CartSidebarProps) => {
                   <span>Total:</span>
                   <span className="text-primary">Rs. {getTotalPrice().toLocaleString()}</span>
                 </div>
-                <Button className="w-full" size="lg">
+                <Button 
+                  className="w-full bg-gradient-to-r from-amber-500 to-orange-500" 
+                  size="lg"
+                  onClick={() => {
+                    onCheckout?.();
+                    setOpen(false);
+                  }}
+                >
                   Proceed to Checkout
                 </Button>
               </div>

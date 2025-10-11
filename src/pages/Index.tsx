@@ -1,18 +1,27 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Menu, X, ShoppingCart } from "lucide-react";
+import { Search, Menu, X, LogIn } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import WhatsAppFloat from "@/components/WhatsAppFloat";
 import ProductGrid from "@/components/ProductGrid";
 import HeroBanner from "@/components/HeroBanner";
+import SeasonalBanner from "@/components/SeasonalBanner";
 import CartSidebar from "@/components/CartSidebar";
-import { useCart } from "@/contexts/CartContext";
+import ProductDetailModal from "@/components/ProductDetailModal";
+import CheckoutModal from "@/components/CheckoutModal";
+import { Product } from "@/contexts/ProductContext";
 
 const Index = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Products");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const { getTotalItems } = useCart();
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [checkoutProduct, setCheckoutProduct] = useState<Product | null>(null);
+  const { user, isAdmin } = useAuth();
 
   const categories = [
     "All Products", "Cosmetics", "Clothes", "Kitchenware",
@@ -27,179 +36,146 @@ const Index = () => {
     }
   };
 
+  const handleViewProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setIsProductModalOpen(true);
+  };
+
+  const handleBuyNow = (product: Product) => {
+    setCheckoutProduct(product);
+    setIsCheckoutModalOpen(true);
+    setIsProductModalOpen(false);
+  };
+
+  const handleCartCheckout = () => {
+    setCheckoutProduct(null);
+    setIsCheckoutModalOpen(true);
+  };
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white border-b shadow-sm">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary to-orange-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-xl">A</span>
+      <header className="bg-white shadow-sm sticky top-0 z-40">
+        <div className="container mx-auto px-4 py-3 max-w-7xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-xl">AN</span>
               </div>
-              <h1 className="text-2xl font-bold text-primary">Al-Noor Collection</h1>
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900">Al-Noor Collection</h1>
             </div>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-6">
-              {categories.slice(0, 5).map((category) => (
-                <button
-                  key={category}
-                  onClick={() => handleCategorySelect(category)}
-                  className={`text-sm font-medium transition-colors hover:text-primary ${
-                    selectedCategory === category ? 'text-primary' : 'text-foreground'
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
+            <nav className="hidden md:flex items-center space-x-6">
+              <Link to="/" className="text-gray-700 hover:text-orange-600 transition-colors">Home</Link>
+              {user ? (
+                isAdmin && (
+                  <Link to="/admin" className="text-gray-700 hover:text-orange-600 transition-colors">Admin</Link>
+                )
+              ) : (
+                <Link to="/admin" className="flex items-center gap-2 text-gray-700 hover:text-orange-600 transition-colors">
+                  <LogIn className="w-4 h-4" />
+                  Admin
+                </Link>
+              )}
+              <CartSidebar onCheckout={handleCartCheckout} />
             </nav>
 
-            {/* Actions */}
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                className="relative"
-                onClick={() => setIsCartOpen(true)}
-              >
-                <ShoppingCart className="h-5 w-5" />
-                {getTotalItems() > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    {getTotalItems()}
-                  </span>
-                )}
-              </Button>
-              
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden"
+            <div className="flex items-center space-x-3">
+              <CartSidebar onCheckout={handleCartCheckout} />
+              <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
               >
-                {isMenuOpen ? <X /> : <Menu />}
-              </Button>
+                {isMenuOpen ? <X className="h-6 w-6 text-gray-600" /> : <Menu className="h-6 w-6 text-gray-600" />}
+              </button>
             </div>
           </div>
 
           {/* Mobile Menu */}
           {isMenuOpen && (
-            <nav className="md:hidden pb-4 space-y-2">
-              {categories.map((category) => (
-                <button
-                  key={category}
-                  onClick={() => {
-                    handleCategorySelect(category);
-                    setIsMenuOpen(false);
-                  }}
-                  className={`block w-full text-left px-4 py-2 rounded-lg transition-colors ${
-                    selectedCategory === category
-                      ? 'bg-primary text-white'
-                      : 'hover:bg-accent'
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
-            </nav>
+            <div className="md:hidden bg-white border-t border-gray-200 py-4 space-y-2">
+              <Link to="/" className="block px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">Home</Link>
+              <Link to="/admin" className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors">
+                <LogIn className="w-4 h-4" />
+                Admin
+              </Link>
+            </div>
           )}
+
+          {/* Search Bar */}
+          <div className="relative max-w-md mx-auto md:max-w-lg">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Search products or categories..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 w-full rounded-full border-2 border-orange-200 focus:border-orange-400"
+            />
+          </div>
         </div>
       </header>
 
-      {/* Hero Banner */}
       <HeroBanner />
+      <SeasonalBanner />
 
-      {/* Search and Categories */}
-      <section className="py-8 bg-accent/50">
-        <div className="container mx-auto px-4">
-          <div className="max-w-2xl mx-auto">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Search products..."
-                className="pl-10 h-12"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+      {/* Our Products Section */}
+      <section id="products-section" className="py-12 px-4">
+        <div className="container mx-auto max-w-7xl">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-orange-600 mb-4">
+              {selectedCategory === 'All Products' ? 'Our Products' : selectedCategory}
+            </h2>
+            <p className="text-gray-600 mb-8">
+              Discover our carefully curated collection of premium products designed to brighten your everyday life.
+            </p>
+
+            <div className="flex flex-wrap justify-center gap-2 mb-8">
+              {categories.map((category) => (
+                <Button
+                  key={category}
+                  onClick={() => handleCategorySelect(category)}
+                  variant={selectedCategory === category ? "default" : "outline"}
+                  className={`rounded-full px-6 py-2 text-sm font-medium transition-all duration-300 ${
+                    selectedCategory === category
+                      ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg"
+                      : "border-orange-200 text-gray-700 hover:border-orange-400 hover:bg-orange-50"
+                  }`}
+                >
+                  {category}
+                </Button>
+              ))}
             </div>
           </div>
 
-          {/* Category Filters */}
-          <div className="flex flex-wrap gap-2 mt-6 justify-center">
-            {categories.map((category) => (
-              <Button
-                key={category}
-                variant={selectedCategory === category ? "default" : "outline"}
-                onClick={() => handleCategorySelect(category)}
-                className="rounded-full"
-              >
-                {category}
-              </Button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Products Section */}
-      <section id="products-section" className="py-12">
-        <div className="container mx-auto px-4">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold mb-2">
-              {selectedCategory === "All Products" ? "Featured Products" : selectedCategory}
-            </h2>
-            <p className="text-muted-foreground">
-              Discover our collection of premium quality products
-            </p>
-          </div>
-          <ProductGrid searchQuery={searchTerm} selectedCategory={selectedCategory} />
+          <ProductGrid
+            searchQuery={searchTerm}
+            selectedCategory={selectedCategory}
+            onViewProduct={handleViewProduct}
+          />
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-card border-t mt-20">
-        <div className="container mx-auto px-4 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
-              <h3 className="font-bold text-lg mb-4">Al-Noor Collection</h3>
-              <p className="text-sm text-muted-foreground">
-                Bringing light to your life with premium quality products.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Quick Links</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-primary">About Us</a></li>
-                <li><a href="#" className="hover:text-primary">Contact</a></li>
-                <li><a href="#" className="hover:text-primary">FAQs</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Categories</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-primary">Cosmetics</a></li>
-                <li><a href="#" className="hover:text-primary">Clothes</a></li>
-                <li><a href="#" className="hover:text-primary">Electronics</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Contact Us</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>Email: info@alnoor.com</li>
-                <li>Phone: +92 300 1234567</li>
-                <li>WhatsApp: +92 300 1234567</li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t mt-8 pt-8 text-center text-sm text-muted-foreground">
-            © 2025 Al-Noor Collection. All rights reserved.
-          </div>
+      <footer className="bg-amber-900 text-white py-12 px-4">
+        <div className="container mx-auto max-w-7xl text-center">
+          <p className="text-amber-200">© 2024 Al-Noor Collection. All rights reserved.</p>
         </div>
       </footer>
 
-      {/* Cart Sidebar */}
-      <CartSidebar open={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      <WhatsAppFloat />
+      <ProductDetailModal
+        product={selectedProduct}
+        isOpen={isProductModalOpen}
+        onClose={() => setIsProductModalOpen(false)}
+        onBuyNow={handleBuyNow}
+      />
+      <CheckoutModal
+        product={checkoutProduct}
+        isOpen={isCheckoutModalOpen}
+        onClose={() => setIsCheckoutModalOpen(false)}
+      />
     </div>
   );
 };
