@@ -5,31 +5,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   BarChart3,
   Package,
-  Upload,
   ShoppingBag,
   LogOut,
   Shield,
   TrendingUp,
   DollarSign,
-  Edit3,
-  Trash2,
-  Plus
+  Settings,
+  MessageSquare,
+  CreditCard,
+  Lock,
+  Store
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { useProducts, Product } from '@/contexts/ProductContext';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useProducts } from '@/contexts/ProductContext';
+import ModernProductManager from '@/components/admin/ModernProductManager';
+import OrdersManager from '@/components/admin/OrdersManager';
+import PasswordManager from '@/components/admin/PasswordManager';
+import FormManager from '@/components/admin/FormManager';
+import PaymentMethodsManager from '@/components/admin/PaymentMethodsManager';
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -37,23 +34,11 @@ const Admin = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(
     localStorage.getItem('adminPassword') === 'admin123'
   );
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [productForm, setProductForm] = useState({
-    name: '',
-    category: '',
-    price: '',
-    original_price: '',
-    image: '',
-    badge: '',
-    rating: 0,
-    stock: 0,
-    description: ''
-  });
 
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signOut } = useAuth();
-  const { products, addProduct, updateProduct, deleteProduct } = useProducts();
+  const { products } = useProducts();
 
   const handleLogin = () => {
     if (passwordInput === 'admin123') {
@@ -76,82 +61,6 @@ const Admin = () => {
     signOut();
     setIsAuthenticated(false);
     navigate('/');
-  };
-
-  const handleProductFormChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    setProductForm({
-      ...productForm,
-      [e.target.name]: e.target.value
-    });
-  };
-
-  const handleAddProduct = () => {
-    addProduct({
-      ...productForm,
-      rating: Number(productForm.rating),
-      stock: Number(productForm.stock)
-    });
-    toast({
-      title: "Product Added",
-      description: `${productForm.name} has been added successfully.`,
-    });
-    resetForm();
-  };
-
-  const handleUpdateProduct = () => {
-    if (editingProduct) {
-      updateProduct(editingProduct.id, {
-        ...productForm,
-        rating: Number(productForm.rating),
-        stock: Number(productForm.stock)
-      });
-      toast({
-        title: "Product Updated",
-        description: `${productForm.name} has been updated successfully.`,
-      });
-      resetForm();
-    }
-  };
-
-  const handleEditProduct = (product: Product) => {
-    setEditingProduct(product);
-    setProductForm({
-      name: product.name,
-      category: product.category,
-      price: product.price,
-      original_price: product.original_price || '',
-      image: product.image,
-      badge: product.badge || '',
-      rating: product.rating || 0,
-      stock: product.stock || 0,
-      description: product.description || ''
-    });
-    setActiveTab('products');
-  };
-
-  const handleDeleteProduct = (id: number) => {
-    deleteProduct(id);
-    toast({
-      title: "Product Deleted",
-      description: "Product has been removed successfully.",
-    });
-  };
-
-  const resetForm = () => {
-    setEditingProduct(null);
-    setProductForm({
-      name: '',
-      category: '',
-      price: '',
-      original_price: '',
-      image: '',
-      badge: '',
-      rating: 0,
-      stock: 0,
-      description: ''
-    });
   };
 
   if (!isAuthenticated) {
@@ -196,49 +105,75 @@ const Admin = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4 max-w-7xl">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold">AN</span>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Modern Admin Header */}
+      <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-orange-400 via-amber-500 to-yellow-400 rounded-xl flex items-center justify-center shadow-lg">
+                <Store className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Al-Noor Collection</h1>
-                <p className="text-sm text-gray-500">Admin Panel</p>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                  Al-Noor Admin
+                </h1>
+                <p className="text-sm text-gray-600">Store Management Dashboard</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={() => navigate('/')}>
+            <div className="flex items-center space-x-4">
+              <Button
+                onClick={() => navigate('/')}
+                variant="outline"
+                size="sm"
+                className="hidden md:flex"
+              >
                 View Store
               </Button>
-              <Button variant="destructive" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
+              <Button
+                onClick={handleLogout}
+                variant="outline"
+                size="sm"
+                className="flex items-center space-x-2 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Logout</span>
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 mb-8">
-            <TabsTrigger value="dashboard">
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="products">
-              <Package className="h-4 w-4 mr-2" />
-              Products
-            </TabsTrigger>
-            <TabsTrigger value="orders">
-              <ShoppingBag className="h-4 w-4 mr-2" />
-              Orders
-            </TabsTrigger>
-          </TabsList>
+          <div className="bg-white rounded-lg shadow-sm p-2 mb-8">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 gap-2">
+              <TabsTrigger value="dashboard" className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                <span className="hidden sm:inline">Dashboard</span>
+              </TabsTrigger>
+              <TabsTrigger value="products" className="flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                <span className="hidden sm:inline">Products</span>
+              </TabsTrigger>
+              <TabsTrigger value="orders" className="flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4" />
+                <span className="hidden sm:inline">Orders</span>
+              </TabsTrigger>
+              <TabsTrigger value="messages" className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                <span className="hidden sm:inline">Messages</span>
+              </TabsTrigger>
+              <TabsTrigger value="payments" className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                <span className="hidden sm:inline">Payments</span>
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                <span className="hidden sm:inline">Settings</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard">
@@ -279,206 +214,60 @@ const Admin = () => {
           </TabsContent>
 
           {/* Products Tab */}
-          <TabsContent value="products" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  {editingProduct ? 'Edit Product' : 'Add New Product'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Product Name</Label>
-                    <Input
-                      id="name"
-                      name="name"
-                      value={productForm.name}
-                      onChange={handleProductFormChange}
-                      placeholder="Enter product name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="category">Category</Label>
-                    <Input
-                      id="category"
-                      name="category"
-                      value={productForm.category}
-                      onChange={handleProductFormChange}
-                      placeholder="e.g., Cosmetics, Clothes"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="price">Price (PKR)</Label>
-                    <Input
-                      id="price"
-                      name="price"
-                      value={productForm.price}
-                      onChange={handleProductFormChange}
-                      placeholder="2,500"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="original_price">Original Price (Optional)</Label>
-                    <Input
-                      id="original_price"
-                      name="original_price"
-                      value={productForm.original_price}
-                      onChange={handleProductFormChange}
-                      placeholder="3,500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="image">Image URL</Label>
-                  <Input
-                    id="image"
-                    name="image"
-                    value={productForm.image}
-                    onChange={handleProductFormChange}
-                    placeholder="https://example.com/image.jpg"
-                  />
-                </div>
-
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="badge">Badge (Optional)</Label>
-                    <Input
-                      id="badge"
-                      name="badge"
-                      value={productForm.badge}
-                      onChange={handleProductFormChange}
-                      placeholder="New, Sale, Featured"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="rating">Rating (0-5)</Label>
-                    <Input
-                      id="rating"
-                      name="rating"
-                      type="number"
-                      min="0"
-                      max="5"
-                      step="0.1"
-                      value={productForm.rating}
-                      onChange={handleProductFormChange}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="stock">Stock Quantity</Label>
-                    <Input
-                      id="stock"
-                      name="stock"
-                      type="number"
-                      min="0"
-                      value={productForm.stock}
-                      onChange={handleProductFormChange}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    name="description"
-                    value={productForm.description}
-                    onChange={handleProductFormChange}
-                    placeholder="Enter product description"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex gap-3">
-                  {editingProduct && (
-                    <Button variant="outline" onClick={resetForm}>
-                      Cancel
-                    </Button>
-                  )}
-                  <Button
-                    onClick={editingProduct ? handleUpdateProduct : handleAddProduct}
-                    className="bg-gradient-to-r from-amber-500 to-orange-500"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    {editingProduct ? 'Update Product' : 'Add Product'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Products List */}
-            <Card>
-              <CardHeader>
-                <CardTitle>All Products</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Image</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead>Stock</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {products.map((product) => (
-                      <TableRow key={product.id}>
-                        <TableCell>
-                          <img
-                            src={product.image}
-                            alt={product.name}
-                            className="w-12 h-12 object-cover rounded"
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell>{product.category}</TableCell>
-                        <TableCell>PKR {product.price}</TableCell>
-                        <TableCell>{product.stock || 0}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEditProduct(product)}
-                            >
-                              <Edit3 className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleDeleteProduct(product.id)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+          <TabsContent value="products">
+            <ModernProductManager />
           </TabsContent>
 
           {/* Orders Tab */}
           <TabsContent value="orders">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Orders</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-500 text-center py-8">
-                  No orders yet. Orders will appear here when customers place them.
-                </p>
-              </CardContent>
-            </Card>
+            <OrdersManager />
+          </TabsContent>
+
+          {/* Messages Tab */}
+          <TabsContent value="messages">
+            <FormManager />
+          </TabsContent>
+
+          {/* Payments Tab */}
+          <TabsContent value="payments">
+            <PaymentMethodsManager />
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings">
+            <div className="space-y-6">
+              <PasswordManager />
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Store Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="store-name">Store Name</Label>
+                    <Input id="store-name" defaultValue="Al-Noor Collection" />
+                  </div>
+                  <div>
+                    <Label htmlFor="store-email">Contact Email</Label>
+                    <Input id="store-email" type="email" defaultValue="alnoormall.pk@gmail.com" />
+                  </div>
+                  <div>
+                    <Label htmlFor="store-phone">Contact Phone</Label>
+                    <Input id="store-phone" defaultValue="+92 300 1234567" />
+                  </div>
+                  <div>
+                    <Label htmlFor="whatsapp">WhatsApp Number</Label>
+                    <Input id="whatsapp" defaultValue="+923001234567" />
+                  </div>
+                  <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-500">
+                    Save Settings
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
