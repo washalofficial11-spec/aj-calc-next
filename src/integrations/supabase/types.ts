@@ -14,7 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      payment_methods: {
+        Row: {
+          account_number: string | null
+          created_at: string
+          display_order: number
+          id: string
+          is_enabled: boolean
+          method_key: string
+          name: string
+          qr_code_url: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          account_number?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_enabled?: boolean
+          method_key: string
+          name: string
+          qr_code_url?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          account_number?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_enabled?: boolean
+          method_key?: string
+          name?: string
+          qr_code_url?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
