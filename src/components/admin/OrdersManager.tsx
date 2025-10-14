@@ -1,67 +1,90 @@
 import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Search, Package, Eye, Calendar } from 'lucide-react';
+import { Search, Package, Eye, Calendar, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface OrderItem {
+  id: string;
+  product_name: string;
+  product_image: string | null;
+  quantity: number;
+  price: number;
+}
 
 interface Order {
-  id: number;
+  id: string;
   order_number: string;
   customer_name: string;
-  email: string;
+  email: string | null;
   phone: string;
   address: string;
-  total: number;
-  payment_method: string;
+  city: string;
+  postal_code: string | null;
+  notes: string | null;
+  total_amount: number;
+  payment_method_id: string;
+  payment_screenshot_url: string | null;
   status: string;
   created_at: string;
-  items: Array<{ name: string; quantity: number; price: number }>;
+  payment_methods: {
+    name: string;
+    type: string;
+  } | null;
+  order_items: OrderItem[];
 }
 
 const OrdersManager: React.FC = () => {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-  // Mock data - Replace with actual data from your backend
-  const [orders] = useState<Order[]>([
-    {
-      id: 1,
-      order_number: 'ORD-001',
-      customer_name: 'Ahmed Ali',
-      email: 'ahmed@example.com',
-      phone: '+92 300 1234567',
-      address: 'Street 123, Lahore',
-      total: 5000,
-      payment_method: 'Cash on Delivery',
-      status: 'pending',
-      created_at: new Date().toISOString(),
-      items: [
-        { name: 'Premium Face Cream', quantity: 2, price: 2500 }
-      ]
+  // Fetch orders from database
+  const { data: orders = [], isLoading } = useQuery({
+    queryKey: ['orders'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          payment_methods (name, type),
+          order_items (*)
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as Order[];
     },
-    {
-      id: 2,
-      order_number: 'ORD-002',
-      customer_name: 'Fatima Khan',
-      email: 'fatima@example.com',
-      phone: '+92 301 9876543',
-      address: 'Block A, Karachi',
-      total: 3500,
-      payment_method: 'Bank Transfer',
-      status: 'completed',
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-      items: [
-        { name: 'Designer Kurta', quantity: 1, price: 3500 }
-      ]
-    }
-  ]);
+  });
+
+  // Update order status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status })
+        .eq('id', orderId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast.success('Order status updated successfully');
+    },
+    onError: (error: any) => {
+      toast.error('Failed to update order status: ' + error.message);
+    },
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -75,7 +98,8 @@ const OrdersManager: React.FC = () => {
 
   const filteredOrders = orders.filter(order => {
     const matchesSearch = order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.customer_name.toLowerCase().includes(searchTerm.toLowerCase());
+                         order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (order.email?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -84,6 +108,18 @@ const OrdersManager: React.FC = () => {
     setSelectedOrder(order);
     setIsDetailOpen(true);
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="text-center text-muted-foreground">Loading orders...</div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -141,17 +177,17 @@ const OrdersManager: React.FC = () => {
                     <TableCell>
                       <div>
                         <div className="font-medium">{order.customer_name}</div>
-                        <div className="text-sm text-gray-500">{order.email}</div>
+                        <div className="text-sm text-muted-foreground">{order.email || 'N/A'}</div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
                         {format(new Date(order.created_at), 'MMM dd, yyyy')}
                       </div>
                     </TableCell>
-                    <TableCell className="font-semibold">PKR {order.total.toLocaleString()}</TableCell>
-                    <TableCell>{order.payment_method}</TableCell>
+                    <TableCell className="font-semibold">PKR {Number(order.total_amount).toLocaleString()}</TableCell>
+                    <TableCell>{order.payment_methods?.name || 'N/A'}</TableCell>
                     <TableCell>
                       <Badge className={getStatusColor(order.status)}>
                         {order.status}
@@ -167,7 +203,7 @@ const OrdersManager: React.FC = () => {
                 ))}
                 {filteredOrders.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No orders found
                     </TableCell>
                   </TableRow>
@@ -200,8 +236,21 @@ const OrdersManager: React.FC = () => {
                   <h3 className="font-semibold mb-2">Order Information</h3>
                   <div className="space-y-1 text-sm">
                     <p><strong>Order Date:</strong> {format(new Date(selectedOrder.created_at), 'PPP')}</p>
-                    <p><strong>Payment Method:</strong> {selectedOrder.payment_method}</p>
+                    <p><strong>Payment Method:</strong> {selectedOrder.payment_methods?.name || 'N/A'}</p>
                     <p><strong>Status:</strong> <Badge className={getStatusColor(selectedOrder.status)}>{selectedOrder.status}</Badge></p>
+                    {selectedOrder.payment_screenshot_url && (
+                      <div className="pt-2">
+                        <p className="font-medium mb-1">Payment Screenshot:</p>
+                        <a 
+                          href={selectedOrder.payment_screenshot_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-primary hover:underline"
+                        >
+                          View Payment Proof <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -218,23 +267,28 @@ const OrdersManager: React.FC = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {selectedOrder.items.map((item, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell>{item.name}</TableCell>
+                      {selectedOrder.order_items.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.product_name}</TableCell>
                           <TableCell>{item.quantity}</TableCell>
-                          <TableCell>PKR {item.price.toLocaleString()}</TableCell>
+                          <TableCell>PKR {Number(item.price).toLocaleString()}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </div>
                 <div className="mt-4 text-right">
-                  <p className="text-lg font-bold">Total: PKR {selectedOrder.total.toLocaleString()}</p>
+                  <p className="text-lg font-bold">Total: PKR {Number(selectedOrder.total_amount).toLocaleString()}</p>
                 </div>
               </div>
 
               <div className="flex gap-2">
-                <Select defaultValue={selectedOrder.status}>
+                <Select 
+                  defaultValue={selectedOrder.status}
+                  onValueChange={(value) => {
+                    updateStatusMutation.mutate({ orderId: selectedOrder.id, status: value });
+                  }}
+                >
                   <SelectTrigger className="w-48">
                     <SelectValue />
                   </SelectTrigger>
@@ -245,9 +299,6 @@ const OrdersManager: React.FC = () => {
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button className="bg-gradient-to-r from-amber-500 to-orange-500">
-                  Update Status
-                </Button>
               </div>
             </div>
           )}

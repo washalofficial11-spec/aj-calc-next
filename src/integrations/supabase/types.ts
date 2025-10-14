@@ -14,6 +14,106 @@ export type Database = {
   }
   public: {
     Tables: {
+      order_items: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string
+          price: number
+          product_image: string | null
+          product_name: string
+          quantity: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id: string
+          price: number
+          product_image?: string | null
+          product_name: string
+          quantity?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string
+          price?: number
+          product_image?: string | null
+          product_name?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          address: string
+          city: string
+          created_at: string
+          customer_name: string
+          email: string | null
+          id: string
+          notes: string | null
+          order_number: string
+          payment_method_id: string | null
+          payment_screenshot_url: string | null
+          phone: string
+          postal_code: string | null
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          city: string
+          created_at?: string
+          customer_name: string
+          email?: string | null
+          id?: string
+          notes?: string | null
+          order_number: string
+          payment_method_id?: string | null
+          payment_screenshot_url?: string | null
+          phone: string
+          postal_code?: string | null
+          status?: string
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          city?: string
+          created_at?: string
+          customer_name?: string
+          email?: string | null
+          id?: string
+          notes?: string | null
+          order_number?: string
+          payment_method_id?: string | null
+          payment_screenshot_url?: string | null
+          phone?: string
+          postal_code?: string | null
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_methods: {
         Row: {
           account_number: string | null
