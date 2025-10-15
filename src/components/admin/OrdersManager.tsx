@@ -26,13 +26,19 @@ interface Order {
   customer_name: string;
   email: string | null;
   phone: string;
+  country: string | null;
   address: string;
   city: string;
-  postal_code: string | null;
+  zip_code: string | null;
   notes: string | null;
-  total_amount: number;
-  payment_method_id: string;
+  payment_method: string | null;
+  payment_method_id: string | null;
+  payment_proof_url: string | null;
   payment_screenshot_url: string | null;
+  subtotal: number | null;
+  delivery_charges: number | null;
+  total: number | null;
+  total_amount: number | null;
   status: string;
   created_at: string;
   payment_methods: {

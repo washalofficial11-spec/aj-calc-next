@@ -17,27 +17,36 @@ export type Database = {
       order_items: {
         Row: {
           created_at: string
+          currency: string | null
           id: string
           order_id: string
           price: number
+          price_at_purchase: number | null
+          product_id: number | null
           product_image: string | null
           product_name: string
           quantity: number
         }
         Insert: {
           created_at?: string
+          currency?: string | null
           id?: string
           order_id: string
           price: number
+          price_at_purchase?: number | null
+          product_id?: number | null
           product_image?: string | null
           product_name: string
           quantity?: number
         }
         Update: {
           created_at?: string
+          currency?: string | null
           id?: string
           order_id?: string
           price?: number
+          price_at_purchase?: number | null
+          product_id?: number | null
           product_image?: string | null
           product_name?: string
           quantity?: number
@@ -56,53 +65,74 @@ export type Database = {
         Row: {
           address: string
           city: string
+          country: string | null
           created_at: string
           customer_name: string
+          delivery_charges: number | null
           email: string | null
           id: string
           notes: string | null
           order_number: string
+          payment_method: string | null
           payment_method_id: string | null
+          payment_proof_url: string | null
           payment_screenshot_url: string | null
           phone: string
-          postal_code: string | null
           status: string
-          total_amount: number
+          subtotal: number | null
+          total: number | null
+          total_amount: number | null
           updated_at: string
+          zip_code: string | null
+          zip_code_old: string | null
         }
         Insert: {
           address: string
           city: string
+          country?: string | null
           created_at?: string
           customer_name: string
+          delivery_charges?: number | null
           email?: string | null
           id?: string
           notes?: string | null
           order_number: string
+          payment_method?: string | null
           payment_method_id?: string | null
+          payment_proof_url?: string | null
           payment_screenshot_url?: string | null
           phone: string
-          postal_code?: string | null
           status?: string
-          total_amount: number
+          subtotal?: number | null
+          total?: number | null
+          total_amount?: number | null
           updated_at?: string
+          zip_code?: string | null
+          zip_code_old?: string | null
         }
         Update: {
           address?: string
           city?: string
+          country?: string | null
           created_at?: string
           customer_name?: string
+          delivery_charges?: number | null
           email?: string | null
           id?: string
           notes?: string | null
           order_number?: string
+          payment_method?: string | null
           payment_method_id?: string | null
+          payment_proof_url?: string | null
           payment_screenshot_url?: string | null
           phone?: string
-          postal_code?: string | null
           status?: string
-          total_amount?: number
+          subtotal?: number | null
+          total?: number | null
+          total_amount?: number | null
           updated_at?: string
+          zip_code?: string | null
+          zip_code_old?: string | null
         }
         Relationships: [
           {

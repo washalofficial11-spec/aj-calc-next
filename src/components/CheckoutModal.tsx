@@ -7,7 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { ShoppingCart, CheckCircle, Upload, X } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ShoppingCart, CheckCircle, Upload, X, Truck, CreditCard, MapPin, Plus, Minus } from 'lucide-react';
+import PhoneInput from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
 import { Product } from '@/contexts/ProductContext';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
@@ -28,15 +31,17 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     name: '',
     email: '',
     phone: '',
+    country: '',
     address: '',
     city: '',
     postalCode: '',
     notes: '',
-    paymentMethodId: ''
+    paymentType: 'cash_on_delivery',
+    paymentMethod: ''
   });
-  const [paymentScreenshot, setPaymentScreenshot] = useState<File | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { items, clearCart, getTotalPrice } = useCart();
+  const [paymentProof, setPaymentProof] = useState<File | null>(null);
+  const [productQuantities, setProductQuantities] = useState<{[key: number]: number}>({});
+  const { items, updateQuantity, clearCart, getTotalPrice, getTotalItems } = useCart();
   const { toast } = useToast();
 
   // Fetch payment methods
@@ -54,35 +59,70 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     },
   });
 
-  const checkoutItems = product ? [{ ...product, quantity: 1 }] : items;
-  const totalAmount = product 
-    ? parseFloat(product.price.replace(/,/g, ''))
-    : getTotalPrice();
+  const codMethods = paymentMethods?.filter(m => m.type === 'cash_on_delivery') || [];
+  const advanceMethods = paymentMethods?.filter(m => m.type === 'advance_payment') || [];
+  const selectedAdvanceMethod = advanceMethods.find(m => m.method_key === formData.paymentMethod);
+
+  const orderItems = product ? [{ ...product, quantity: productQuantities[product.id] || 1 }] : items;
+
+  const updateProductQuantity = (productId: number, quantity: number) => {
+    if (quantity < 1) return;
+    setProductQuantities(prev => ({ ...prev, [productId]: quantity }));
+  };
+
+  const getItemPrice = (item: any) => {
+    const price = parseFloat(item.price.replace(/[^\d.]/g, ''));
+    const quantity = product ? (productQuantities[item.id] || 1) : item.quantity;
+    return price * quantity;
+  };
+
+  const getItemQuantity = (item: any) => {
+    return product ? (productQuantities[item.id] || 1) : item.quantity;
+  };
+
+  const calculateTotal = () => {
+    if (product) {
+      const productPrice = parseFloat(product.price.replace(/[^\d.]/g, ''));
+      const quantity = productQuantities[product.id] || 1;
+      const subtotal = productPrice * quantity;
+      const shippingCost = 150;
+      return { subtotal, shipping: shippingCost, total: subtotal + shippingCost };
+    } else {
+      const subtotal = getTotalPrice();
+      const shippingCost = 150;
+      return { subtotal, shipping: shippingCost, total: subtotal + shippingCost };
+    }
+  };
+
+  const { subtotal, shipping, total } = calculateTotal();
 
   const createOrderMutation = useMutation({
     mutationFn: async () => {
-      // Generate order number
       const orderNumber = `ORD-${Date.now()}`;
       
-      // Upload payment screenshot if provided
-      let paymentScreenshotUrl = null;
-      if (paymentScreenshot) {
-        const fileExt = paymentScreenshot.name.split('.').pop();
-        const fileName = `${orderNumber}-${Date.now()}.${fileExt}`;
+      // Upload payment proof if provided
+      let paymentProofUrl = null;
+      if (paymentProof) {
+        const fileExt = paymentProof.name.split('.').pop();
+        const fileName = `payment-proof-${Date.now()}.${fileExt}`;
         const filePath = `${fileName}`;
 
-        const { error: uploadError, data } = await supabase.storage
-          .from('payment-screenshots')
-          .upload(filePath, paymentScreenshot);
+        const { error: uploadError } = await supabase.storage
+          .from('payment-proofs')
+          .upload(filePath, paymentProof);
 
         if (uploadError) throw uploadError;
 
         const { data: { publicUrl } } = supabase.storage
-          .from('payment-screenshots')
+          .from('payment-proofs')
           .getPublicUrl(filePath);
 
-        paymentScreenshotUrl = publicUrl;
+        paymentProofUrl = publicUrl;
       }
+
+      const finalPaymentMethod = formData.paymentType === 'cash_on_delivery' 
+        ? 'cash_on_delivery' 
+        : formData.paymentMethod;
 
       // Create order
       const { data: order, error: orderError } = await supabase
@@ -92,13 +132,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
           customer_name: formData.name,
           email: formData.email || null,
           phone: formData.phone,
+          country: formData.country,
           address: formData.address,
           city: formData.city,
-          postal_code: formData.postalCode || null,
+          zip_code: formData.postalCode || null,
           notes: formData.notes || null,
-          payment_method_id: formData.paymentMethodId,
-          payment_screenshot_url: paymentScreenshotUrl,
-          total_amount: totalAmount,
+          payment_method: finalPaymentMethod,
+          payment_proof_url: paymentProofUrl,
+          subtotal,
+          delivery_charges: shipping,
+          total,
           status: 'pending'
         })
         .select()
@@ -107,26 +150,33 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       if (orderError) throw orderError;
 
       // Create order items
-      const orderItems = checkoutItems.map(item => ({
+      const orderItemsToInsert = orderItems.map(item => ({
         order_id: order.id,
+        product_id: item.id,
         product_name: item.name,
         product_image: item.image,
-        quantity: product ? 1 : item.quantity,
-        price: parseFloat(item.price.replace(/,/g, ''))
+        quantity: getItemQuantity(item),
+        price: parseFloat(item.price.replace(/[^\d.]/g, '')),
+        price_at_purchase: parseFloat(item.price.replace(/[^\d.]/g, '')),
+        currency: 'PKR'
       }));
 
       const { error: itemsError } = await supabase
         .from('order_items')
-        .insert(orderItems);
+        .insert(orderItemsToInsert);
 
       if (itemsError) throw itemsError;
 
       return order;
     },
-    onSuccess: () => {
+    onSuccess: (order) => {
+      const orderDescription = product 
+        ? `Your order for ${product.name} has been placed.`
+        : `Your order with ${getTotalItems()} items has been placed.`;
+      
       toast({
         title: "Order Placed Successfully!",
-        description: "We'll contact you shortly to confirm your order.",
+        description: `${orderDescription} Order #${order.order_number}. We'll contact you soon!`,
       });
 
       if (!product) {
@@ -138,13 +188,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         name: '',
         email: '',
         phone: '',
+        country: '',
         address: '',
         city: '',
         postalCode: '',
         notes: '',
-        paymentMethodId: ''
+        paymentType: 'cash_on_delivery',
+        paymentMethod: ''
       });
-      setPaymentScreenshot(null);
+      setPaymentProof(null);
+      setProductQuantities({});
     },
     onError: (error: any) => {
       toast({
@@ -158,23 +211,24 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.paymentMethodId) {
-      toast({
-        title: "Payment Method Required",
-        description: "Please select a payment method",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const selectedMethod = paymentMethods?.find(m => m.id === formData.paymentMethodId);
-    if (selectedMethod?.type === 'advance_payment' && !paymentScreenshot) {
-      toast({
-        title: "Payment Screenshot Required",
-        description: "Please upload your payment screenshot for advance payment",
-        variant: "destructive"
-      });
-      return;
+    if (formData.paymentType === 'advance_payment') {
+      if (!formData.paymentMethod) {
+        toast({
+          title: "Payment Method Required",
+          description: "Please select an advance payment method",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      if (!paymentProof) {
+        toast({
+          title: "Payment Proof Required",
+          description: "Please upload your payment proof screenshot",
+          variant: "destructive"
+        });
+        return;
+      }
     }
 
     createOrderMutation.mutate();
@@ -189,53 +243,83 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "File Too Large",
-          description: "Please upload an image smaller than 5MB",
-          variant: "destructive"
-        });
-        return;
-      }
-      setPaymentScreenshot(file);
-    }
-  };
-
-  const selectedPaymentMethod = paymentMethods?.find(m => m.id === formData.paymentMethodId);
-  const isAdvancePayment = selectedPaymentMethod?.type === 'advance_payment';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-orange-600 flex items-center gap-2">
-            <ShoppingCart className="h-6 w-6" />
+          <DialogTitle className="text-2xl font-bold flex items-center">
+            <ShoppingCart className="w-6 h-6 mr-2" />
             Checkout
           </DialogTitle>
+          <div className="text-sm text-muted-foreground mt-2">
+            Complete your order details below
+          </div>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Order Summary */}
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <h3 className="font-semibold text-lg mb-3">Order Summary</h3>
-            <div className="space-y-2">
-              {checkoutItems.map((item, index) => (
-                <div key={index} className="flex justify-between text-sm">
-                  <span>{item.name} {!product && `x ${item.quantity}`}</span>
-                  <span className="font-medium">
-                    PKR {product ? item.price : (parseFloat(item.price.replace(/,/g, '')) * item.quantity).toLocaleString()}
-                  </span>
+          <div className="bg-muted p-4 rounded-lg">
+            <h3 className="font-semibold mb-3">Order Summary</h3>
+            
+            <div className="space-y-3">
+              {orderItems.map((item) => (
+                <div key={item.id} className="flex items-center space-x-4">
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="w-16 h-16 object-cover rounded"
+                  />
+                  <div className="flex-1">
+                    <h4 className="font-medium">{item.name}</h4>
+                    <p className="text-sm text-muted-foreground">{item.category}</p>
+                    <div className="flex items-center space-x-2 mt-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => product ? updateProductQuantity(item.id, getItemQuantity(item) - 1) : updateQuantity(item.id, item.quantity - 1)}
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <span className="w-8 text-center text-sm font-medium">{getItemQuantity(item)}</span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => product ? updateProductQuantity(item.id, getItemQuantity(item) + 1) : updateQuantity(item.id, item.quantity + 1)}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">PKR {parseFloat(item.price.replace(/[^\d.]/g, '')).toLocaleString()} each</p>
+                    <p className="font-semibold">PKR {getItemPrice(item).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">Qty: {getItemQuantity(item)}</p>
+                  </div>
                 </div>
               ))}
-              <Separator />
-              <div className="flex justify-between font-bold text-lg">
-                <span>Total:</span>
-                <span className="text-orange-600">
-                  PKR {totalAmount.toLocaleString()}
+            </div>
+            
+            <Separator className="my-3" />
+            
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Subtotal:</span>
+                <span>PKR {subtotal.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="flex items-center">
+                  <Truck className="w-4 h-4 mr-1" />
+                  Shipping:
                 </span>
+                <span>PKR {shipping}</span>
+              </div>
+              <Separator />
+              <div className="flex justify-between font-semibold text-lg">
+                <span>Total:</span>
+                <span>PKR {total.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -244,7 +328,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
           <div className="space-y-4">
             <h3 className="font-semibold text-lg">Customer Information</h3>
             
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="name">Full Name *</Label>
                 <Input
@@ -252,51 +336,65 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  required
                   placeholder="Enter your full name"
+                  required
                 />
               </div>
               
               <div>
-                <Label htmlFor="phone">Phone Number *</Label>
+                <Label htmlFor="email">Email Address</Label>
                 <Input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  value={formData.phone}
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={formData.email}
                   onChange={handleInputChange}
-                  required
-                  placeholder="+92 300 1234567"
+                  placeholder="your@email.com"
                 />
               </div>
             </div>
-
+            
             <div>
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="country" className="flex items-center">
+                <MapPin className="w-4 h-4 mr-1" />
+                Country *
+              </Label>
               <Input
-                id="email"
-                name="email"
-                type="email"
-                value={formData.email}
+                id="country"
+                name="country"
+                value={formData.country}
                 onChange={handleInputChange}
-                placeholder="your.email@example.com"
+                placeholder="e.g., Pakistan, India, Bangladesh"
+                required
               />
             </div>
-
+            
             <div>
-              <Label htmlFor="address">Address *</Label>
+              <Label htmlFor="phone">Phone Number *</Label>
+              <PhoneInput
+                international
+                countryCallingCodeEditable={false}
+                defaultCountry="PK"
+                value={formData.phone}
+                onChange={(value) => setFormData(prev => ({ ...prev, phone: value || '' }))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                placeholder="Enter phone number"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="address">Complete Address *</Label>
               <Textarea
                 id="address"
                 name="address"
                 value={formData.address}
                 onChange={handleInputChange}
+                placeholder="House/Flat number, Street, Area"
                 required
-                placeholder="Street address, apartment, suite, etc."
-                rows={2}
               />
             </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="city">City *</Label>
                 <Input
@@ -304,8 +402,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   name="city"
                   value={formData.city}
                   onChange={handleInputChange}
-                  required
                   placeholder="Enter your city"
+                  required
                 />
               </div>
               
@@ -316,114 +414,138 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   name="postalCode"
                   value={formData.postalCode}
                   onChange={handleInputChange}
-                  placeholder="Enter postal code"
+                  placeholder="12345"
                 />
               </div>
             </div>
-
+            
             <div>
-              <Label htmlFor="notes">Order Notes (Optional)</Label>
+              <Label htmlFor="notes">Special Instructions (Optional)</Label>
               <Textarea
                 id="notes"
                 name="notes"
                 value={formData.notes}
                 onChange={handleInputChange}
-                placeholder="Any special instructions for your order"
-                rows={2}
+                placeholder="Any special delivery instructions..."
               />
             </div>
           </div>
 
           {/* Payment Method */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-lg">Payment Method</h3>
+          <div className="space-y-4 bg-muted p-4 rounded-lg">
+            <h3 className="font-semibold flex items-center">
+              <CreditCard className="w-5 h-5 mr-2" />
+              Payment Method
+            </h3>
             
             {loadingPaymentMethods ? (
               <div className="text-muted-foreground">Loading payment methods...</div>
             ) : (
-              <RadioGroup
-                value={formData.paymentMethodId}
-                onValueChange={(value) => setFormData({ ...formData, paymentMethodId: value })}
-              >
-                {paymentMethods?.map((method) => (
-                  <div key={method.id} className="border rounded-lg p-4 space-y-3">
+              <>
+                <RadioGroup
+                  value={formData.paymentType}
+                  onValueChange={(value) => setFormData(prev => ({ 
+                    ...prev, 
+                    paymentType: value,
+                    paymentMethod: value === 'cash_on_delivery' ? '' : prev.paymentMethod
+                  }))}
+                  className="space-y-3"
+                >
+                  {codMethods.length > 0 && (
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value={method.id} id={method.id} />
-                      <Label htmlFor={method.id} className="flex-1 cursor-pointer font-medium">
-                        {method.name}
+                      <RadioGroupItem value="cash_on_delivery" id="cod" />
+                      <Label htmlFor="cod" className="flex items-center cursor-pointer">
+                        <Truck className="w-4 h-4 mr-2 text-green-600" />
+                        Cash on Delivery
                       </Label>
                     </div>
-                    
-                    {formData.paymentMethodId === method.id && method.type === 'advance_payment' && (
-                      <div className="ml-6 space-y-3 pt-2 border-t">
-                        {method.account_number && (
-                          <div className="bg-muted p-3 rounded">
-                            <p className="text-sm font-medium">Account Number:</p>
-                            <p className="text-sm text-muted-foreground font-mono">{method.account_number}</p>
-                          </div>
-                        )}
+                  )}
+                  
+                  {advanceMethods.length > 0 && (
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="advance_payment" id="advance" />
+                      <Label htmlFor="advance" className="flex items-center cursor-pointer">
+                        <CreditCard className="w-4 h-4 mr-2 text-purple-600" />
+                        Advance Payment
+                      </Label>
+                    </div>
+                  )}
+                </RadioGroup>
+
+                {/* Advance Payment Methods Dropdown */}
+                {formData.paymentType === 'advance_payment' && advanceMethods.length > 0 && (
+                  <div className="space-y-3 ml-6">
+                    <Label>Select Payment Method</Label>
+                    <Select
+                      value={formData.paymentMethod}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a payment method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {advanceMethods.map((method) => (
+                          <SelectItem key={method.id} value={method.method_key}>
+                            {method.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Show QR Code and Account Number if method is selected */}
+                    {selectedAdvanceMethod && (
+                      <div className="bg-background p-4 rounded-lg border space-y-3">
+                        <h4 className="font-medium">{selectedAdvanceMethod.name} Details</h4>
                         
-                        {method.qr_code_url && (
-                          <div className="bg-muted p-3 rounded">
-                            <p className="text-sm font-medium mb-2">Scan QR Code to Pay:</p>
-                            <img 
-                              src={method.qr_code_url} 
-                              alt={`${method.name} QR Code`}
-                              className="w-48 h-48 object-contain border rounded"
+                        {selectedAdvanceMethod.qr_code_url && (
+                          <div>
+                            <Label className="text-sm text-muted-foreground">Scan QR Code</Label>
+                            <img
+                              src={selectedAdvanceMethod.qr_code_url}
+                              alt={`${selectedAdvanceMethod.name} QR Code`}
+                              className="w-48 h-48 object-contain border rounded mt-2"
                             />
                           </div>
                         )}
+                        
+                        {selectedAdvanceMethod.account_number && (
+                          <div>
+                            <Label className="text-sm text-muted-foreground">Account Number</Label>
+                            <p className="font-mono text-lg font-semibold mt-1">
+                              {selectedAdvanceMethod.account_number}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Payment Proof Upload */}
+                        <div className="space-y-2 pt-3 border-t">
+                          <Label className="text-sm">
+                            Upload Payment Proof (Screenshot) *
+                          </Label>
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setPaymentProof(e.target.files?.[0] || null)}
+                            required={formData.paymentType === 'advance_payment'}
+                            className="cursor-pointer"
+                          />
+                          {paymentProof && (
+                            <p className="text-sm text-green-600 flex items-center">
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              {paymentProof.name}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Please upload a screenshot of your payment receipt
+                          </p>
+                        </div>
                       </div>
                     )}
                   </div>
-                ))}
-              </RadioGroup>
+                )}
+              </>
             )}
           </div>
-
-          {/* Payment Screenshot Upload for Advance Payment */}
-          {isAdvancePayment && (
-            <div className="space-y-4 border rounded-lg p-4 bg-muted">
-              <h3 className="font-semibold text-lg">Upload Payment Proof *</h3>
-              <p className="text-sm text-muted-foreground">
-                Please upload a screenshot of your payment confirmation
-              </p>
-              
-              {paymentScreenshot ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-3 bg-background border rounded">
-                    <span className="text-sm truncate flex-1">{paymentScreenshot.name}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setPaymentScreenshot(null)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <img 
-                    src={URL.createObjectURL(paymentScreenshot)} 
-                    alt="Payment screenshot preview"
-                    className="max-w-full max-h-64 object-contain border rounded"
-                  />
-                </div>
-              ) : (
-                <div className="relative">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="cursor-pointer"
-                  />
-                  <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                    <Upload className="h-4 w-4" />
-                    <span>Max file size: 5MB</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Submit Button */}
           <div className="flex gap-3">
@@ -432,7 +554,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
               variant="outline"
               onClick={onClose}
               className="flex-1"
-              disabled={isSubmitting}
+              disabled={createOrderMutation.isPending}
             >
               Cancel
             </Button>
